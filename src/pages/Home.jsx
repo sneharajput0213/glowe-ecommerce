@@ -26,17 +26,43 @@ function Home() {
     const fetchProducts =
       async () => {
         try {
+          const apiUrl = import.meta.env.VITE_API_URL;
+
+          if (!apiUrl) {
+            throw new Error(
+              "VITE_API_URL is not defined. Put .env in project root."
+            );
+          }
+
           const response =
             await fetch(
-              "http://localhost:5000/api/products"
+              `${apiUrl}/api/products`
             );
+
+          const contentType =
+            response.headers.get("content-type") || "";
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            const message = contentType.includes("application/json")
+              ? JSON.parse(errorText)?.message || response.statusText
+              : `${response.status} ${response.statusText}`;
+            throw new Error(message);
+          }
+
+          if (!contentType.includes("application/json")) {
+            const bodyText = await response.text();
+            throw new Error(
+              `Unexpected response from API: ${bodyText.slice(0, 140)}`
+            );
+          }
 
           const data =
             await response.json();
 
           setProducts(data);
         } catch (error) {
-          console.log(error);
+          console.error("Error fetching products:", error.message);
         }
       };
 

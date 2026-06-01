@@ -12,7 +12,7 @@ export default function MyOrders() {
           localStorage.getItem("token");
 
         const response = await fetch(
-          "http://localhost:5000/api/orders/myorders",
+          `${import.meta.env.VITE_API_URL}/api/orders/myorders`,
           {
             headers: {
               Authorization: `Bearer ${token}`,
@@ -22,11 +22,13 @@ export default function MyOrders() {
 
         const data = await response.json();
 
-        console.log(data);
+        if (!response.ok) {
+          throw new Error(data.message || "Failed to fetch orders");
+        }
 
         setOrders(data);
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching orders:", error.message);
       } finally {
         setLoading(false);
       }

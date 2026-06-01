@@ -1,9 +1,8 @@
 import { Navigate } from "react-router-dom";
 
 function ProtectedRoute({ children }) {
-  const userInfo = JSON.parse(
-    localStorage.getItem("userInfo")
-  );
+  const userInfoStr = localStorage.getItem("userInfo");
+  const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null;
 
   if (!userInfo) {
     alert("Please login first");

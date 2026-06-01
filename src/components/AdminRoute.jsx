@@ -3,9 +3,8 @@ import { Navigate } from "react-router-dom";
 export default function AdminRoute({
   children,
 }) {
-  const userInfo = JSON.parse(
-    localStorage.getItem("userInfo")
-  );
+  const userInfoStr = localStorage.getItem("userInfo");
+  const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null;
 
   if (!userInfo) {
     return <Navigate to="/" />;

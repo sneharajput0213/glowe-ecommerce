@@ -60,9 +60,8 @@ export default function Checkout() {
     e.preventDefault();
 
     try {
-      const userInfo = JSON.parse(
-        localStorage.getItem("userInfo")
-      );
+      const userInfoStr = localStorage.getItem("userInfo");
+      const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null;
 
       if (!userInfo) {
         alert("Please login first");
@@ -100,7 +99,7 @@ export default function Checkout() {
       const token = localStorage.getItem("token");
 
 const response = await fetch(
-  "http://localhost:5000/api/orders",
+  `${import.meta.env.VITE_API_URL}/api/orders`,
   {
     method: "POST",
     headers: {

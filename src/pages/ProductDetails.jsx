@@ -30,7 +30,7 @@ export default function ProductDetails() {
     const fetchProduct = async () => {
       try {
         const response = await fetch(
-          `http://localhost:5000/api/products/${id}`
+          `${import.meta.env.VITE_API_URL}/api/products/${id}`
         );
 
         const data = await response.json();
@@ -41,7 +41,7 @@ export default function ProductDetails() {
           isInWishlist(data._id)
         );
       } catch (error) {
-        console.log(error);
+        console.error("Error fetching product:", error.message);
       } finally {
         setLoading(false);
       }

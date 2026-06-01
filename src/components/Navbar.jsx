@@ -35,9 +35,9 @@ function Navbar() {
         }
       }
     } catch (error) {
-      console.log(
+      console.error(
         "Error reading user:",
-        error
+        error.message
       );
 
       localStorage.removeItem(

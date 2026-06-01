@@ -7,14 +7,14 @@ export default function AdminProducts() {
   const fetchProducts = async () => {
     try {
       const response = await fetch(
-        "http://localhost:5000/api/products"
+        `${import.meta.env.VITE_API_URL}/api/products`
       );
 
       const data = await response.json();
 
       setProducts(data);
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching products:", error.message);
     }
   };
 
@@ -31,7 +31,7 @@ export default function AdminProducts() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/products/${id}`,
+        `${import.meta.env.VITE_API_URL}/api/products/${id}`,
         {
           method: "DELETE",
         }

@@ -8,7 +8,7 @@ const fetchOrders = async () => {
     const token = localStorage.getItem("token");
 
     const response = await fetch(
-      "http://localhost:5000/api/orders/allorders",
+      `${import.meta.env.VITE_API_URL}/api/orders/allorders`,
       {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -26,7 +26,7 @@ const fetchOrders = async () => {
 
     setOrders(data);
   } catch (error) {
-    console.log(error);
+    console.error("Error fetching orders:", error.message);
   }
 };
 
@@ -42,7 +42,7 @@ const updateStatus = async (
     const token = localStorage.getItem("token");
 
     const response = await fetch(
-      `http://localhost:5000/api/orders/${orderId}/status`,
+      `${import.meta.env.VITE_API_URL}/api/orders/${orderId}/status`,
       {
         method: "PUT",
         headers: {
@@ -65,10 +65,8 @@ const updateStatus = async (
 
     fetchOrders();
   } catch (error) {
-    console.log(error);
+    console.error("Error updating order status:", error.message);
   }
-};
-
   return (
     <div className="min-h-screen py-12 px-4">
       <div className="max-w-7xl mx-auto">
@@ -166,4 +164,4 @@ const updateStatus = async (
       </div>
     </div>
   );
-}
+}}

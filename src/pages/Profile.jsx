@@ -20,7 +20,7 @@ export default function Profile() {
         }
       }
     } catch (error) {
-      console.log("Error loading user:", error);
+      console.error("Error loading user:", error.message);
       localStorage.removeItem("userInfo");
     }
   }, []);

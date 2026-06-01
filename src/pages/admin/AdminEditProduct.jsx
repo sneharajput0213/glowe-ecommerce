@@ -23,7 +23,7 @@ export default function AdminEditProduct() {
   useEffect(() => {
     const fetchProduct = async () => {
       const response = await fetch(
-        `http://localhost:5000/api/products/${id}`
+        `${import.meta.env.VITE_API_URL}/api/products/${id}`
       );
 
       const data =
@@ -60,7 +60,7 @@ export default function AdminEditProduct() {
 
     try {
       const response = await fetch(
-        `http://localhost:5000/api/products/${id}`,
+        `${import.meta.env.VITE_API_URL}/api/products/${id}`,
         {
           method: "PUT",
           headers: {

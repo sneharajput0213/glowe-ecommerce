@@ -3,16 +3,15 @@ import { useEffect, useState } from "react";
 export default function AdminUsers() {
   const [users, setUsers] = useState([]);
 
-  const userInfo = JSON.parse(
-    localStorage.getItem("userInfo")
-  );
+  const userInfoStr = localStorage.getItem("userInfo");
+  const userInfo = userInfoStr ? JSON.parse(userInfoStr) : null;
 
   const fetchUsers = async () => {
     try {
       const token = localStorage.getItem("token");
 
       const response = await fetch(
-        "http://localhost:5000/api/auth/users",
+        `${import.meta.env.VITE_API_URL}/api/auth/users`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -24,7 +23,7 @@ export default function AdminUsers() {
 
       setUsers(data);
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching users:", error.message);
     }
   };
 
@@ -50,7 +49,7 @@ export default function AdminUsers() {
       const token = localStorage.getItem("token");
 
       await fetch(
-        `http://localhost:5000/api/auth/users/${id}`,
+        `${import.meta.env.VITE_API_URL}/api/auth/users/${id}`,
         {
           method: "DELETE",
           headers: {
@@ -61,7 +60,7 @@ export default function AdminUsers() {
 
       fetchUsers();
     } catch (error) {
-      console.log(error);
+      console.error("Error deleting user:", error.message);
     }
   };
 
@@ -77,7 +76,7 @@ export default function AdminUsers() {
       const token = localStorage.getItem("token");
 
       await fetch(
-        `http://localhost:5000/api/auth/users/${id}/admin`,
+        `${import.meta.env.VITE_API_URL}/api/auth/users/${id}/admin`,
         {
           method: "PUT",
           headers: {
@@ -88,7 +87,7 @@ export default function AdminUsers() {
 
       fetchUsers();
     } catch (error) {
-      console.log(error);
+      console.error("Error toggling admin status:", error.message);
     }
   };
 

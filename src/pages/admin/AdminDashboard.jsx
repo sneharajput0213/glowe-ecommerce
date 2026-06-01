@@ -15,7 +15,7 @@ export default function AdminDashboard() {
         localStorage.getItem("token");
 
       const response = await fetch(
-        "http://localhost:5000/api/orders/dashboard/stats",
+        `${import.meta.env.VITE_API_URL}/api/orders/dashboard/stats`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -28,7 +28,7 @@ export default function AdminDashboard() {
 
       setStats(data);
     } catch (error) {
-      console.log(error);
+      console.error("Error fetching stats:", error.message);
     }
   };
 
