@@ -1,33 +1,51 @@
 import express from "express";
 import {
-  registerUser,
-  loginUser,
-  getUsers,
-  deleteUser, 
-  toggleAdmin,
+  register,
+  registerSeller,
+  login,
+  getProfile,
+  updateProfile,
 } from "../controllers/authController.js";
-import { protect, admin } from "../middleware/authMiddleware.js";
+import { authMiddleware } from "../middleware/authMiddleware.js";
+import {
+  registerSchema,
+  sellerRegisterSchema,
+  loginSchema,
+  updateProfileSchema
+} from "../validators/authValidators.js";
+import { validate } from "../middleware/validate.js";
+import { authLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
-router.post("/register", registerUser);
-router.post("/login", loginUser);
-router.get(
-  "/users",
-  protect,
-  admin,
-  getUsers
+router.post(
+  "/register",
+  authLimiter,
+  validate(registerSchema),
+  register
 );
-router.delete(
-  "/users/:id",
-  protect,
-  admin,
-  deleteUser
+
+router.post(
+  "/register-seller",
+  authLimiter,
+  validate(sellerRegisterSchema),
+  registerSeller
 );
+
+router.post(
+  "/login",
+  authLimiter,
+  validate(loginSchema),
+  login
+);
+
+router.get("/profile", authMiddleware, getProfile);
+
 router.put(
-  "/users/:id/toggleadmin",
-  protect,
-  admin,
-  toggleAdmin
+  "/profile",
+  authMiddleware,
+  validate(updateProfileSchema),
+  updateProfile
 );
+
 export default router;

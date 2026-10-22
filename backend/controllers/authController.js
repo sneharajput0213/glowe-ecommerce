@@ -1,166 +1,273 @@
-import User from "../models/User.js";
-import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import User from '../models/userModel.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { registerSchema, sellerRegisterSchema } from "../validators/authValidators.js";
 
-// SIGNUP
-export const registerUser = async (req, res) => {
+
+export const register = async (req, res) => {
+    try {
+        const { name, email, password, phone } = req.validatedBody;
+        // Check if user already exists
+        const userExists = await User.findOne({ email });
+
+        if (userExists) {
+            return res.status(409).json({
+                message: "User already exists"
+            });
+        }
+
+        // Hash password
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Create user
+        const createdUser = await User.create({
+            name,
+            email,
+            password: hashedPassword,
+            phone
+        });
+
+        // Generate JWT
+        const token = jwt.sign(
+            {
+                userId: createdUser._id,
+                role: createdUser.role
+            },
+            process.env.JWT_SECRET,
+            {
+                algorithm: "HS256",
+                expiresIn: "1d"
+            }
+        );
+
+        return res.status(201).json({
+            message: "User created successfully",
+            user: {
+                id: createdUser._id,
+                name: createdUser.name,
+                email: createdUser.email,
+                role: createdUser.role
+            },
+            token
+        });
+    } catch (error) {
+        // Handle duplicate email conflicts
+        if (error.code === 11000) {
+            return res.status(409).json({
+                message: "User already exists"
+            });
+        }
+
+        // Keep internal error details out of API responses
+        console.error("Registration error:", error);
+
+        return res.status(500).json({
+            message: "Error creating user"
+        });
+    }
+};
+
+export const registerSeller = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, phone, storeName } = req.validatedBody;
 
+    // 2. Check whether email already exists
     const userExists = await User.findOne({ email });
 
     if (userExists) {
-      return res.status(400).json({
-        message: "User already exists",
+      return res.status(409).json({
+        message: "User already exists"
       });
     }
 
+    // 3. Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user = await User.create({
+    // 4. Create seller account with pending approval
+    const createdSeller = await User.create({
       name,
       email,
       password: hashedPassword,
+      phone,
+      storeName,
+      role: "seller",
+      sellerStatus: "pending",
+      isActive: true
     });
 
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "7d",
+    // 5. Return success without issuing a JWT
+    return res.status(201).json({
+      message: "Seller application submitted successfully. Awaiting admin approval.",
+      seller: {
+        id: createdSeller._id,
+        name: createdSeller.name,
+        email: createdSeller.email,
+        storeName: createdSeller.storeName,
+        sellerStatus: createdSeller.sellerStatus
       }
-    );
-
-    res.status(201).json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
-      },
     });
+
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-// LOGIN
-export const loginUser = async (req, res) => {
-  try {
-    const { email, password } = req.body;
-
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(400).json({
-        message: "Invalid email or password",
+    if (error.code === 11000) {
+      return res.status(409).json({
+        message: "User already exists"
       });
     }
 
-    const isMatch = await bcrypt.compare(
-      password,
-      user.password
-    );
+    console.error("Seller registration error:", error);
 
-    if (!isMatch) {
-      return res.status(400).json({
-        message: "Invalid email or password",
-      });
+    return res.status(500).json({
+      message: "Unable to submit seller application"
+    });
+  }
+};
+
+export const login = async (req, res) => {
+    const { email, password } = req.validatedBody;
+
+    try{
+        const user = await User.findOne({email});
+        if(!user){
+            return res.status(400).json({
+                message: "Invalid email or password"
+            });
+        }
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if(!isPasswordValid){
+            return res.status(400).json({
+                message: "Invalid email or password"
+            });
+        }
+
+        // Prevent disabled accounts from logging in
+if (!user.isActive) {
+    return res.status(403).json({
+        message: "Your account has been deactivated. Please contact support."
+    });
+}
+
+// Only approved sellers can log in
+if (user.role === "seller") {
+    if (user.sellerStatus === "pending") {
+        return res.status(403).json({
+            message: "Your seller application is awaiting admin approval."
+        });
     }
 
-    const token = jwt.sign(
-      { id: user._id },
-      process.env.JWT_SECRET,
+    if (user.sellerStatus === "rejected") {
+        return res.status(403).json({
+            message: "Your seller application has been rejected."
+        });
+    }
+
+    if (user.sellerStatus !== "approved") {
+        return res.status(403).json({
+            message: "Your seller account is not approved."
+        });
+    }
+}
+
+        const token = jwt.sign(
+            {
+               userId: user._id,
+               role: user.role
+            },
+            process.env.JWT_SECRET,
+            {
+                algorithm: "HS256",
+                expiresIn: "1d"
+            }        
+        );
+
+        return res.status(200).json({
+            message: "User logged in successfully",
+            token,
+            user: {
+                userId: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role
+            }
+        });       
+    }catch ( error ) {
+        console.error("Login error:", error);
+        return res.status(500).json({
+            message: "Error logging in user"  
+        });
+    }
+};
+
+export const getProfile = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select(
+            '-password'
+        );
+
+        if (!user) {
+            return res.status(404).json({
+                message: "User not found"
+            });
+        }
+
+        return res.status(200).json({
+            user: {
+                id: user._id,
+                name: user.name,
+                email: user.email,
+                role: user.role,
+                phone: user.phone
+            }
+        });
+    } catch (error) {
+    console.error("Error fetching profile:", error);
+
+    return res.status(500).json({
+        message: "Error fetching profile",
+        error: error.message
+    });
+}
+};
+
+export const updateProfile = async (req, res) => {
+  try {
+    const { name, phone } = req.validatedBody;
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
       {
-        expiresIn: "7d",
-      }
-    );
-
-    res.json({
-      success: true,
-      token,
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        isAdmin: user.isAdmin,
+        $set: {
+          name,
+          phone
+        }
       },
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-export const getUsers = async (req, res) => {
-  try {
-    const users = await User.find({})
-      .select("-password");
-
-    res.json(users);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
-
-export const deleteUser = async (
-  req,
-  res
-) => {
-  try {
-    const user = await User.findById(
-      req.params.id
+      {
+        returnDocument: "after",
+        runValidators: true
+      }
     );
 
     if (!user) {
       return res.status(404).json({
-        message: "User not found",
+        message: "User not found"
       });
     }
 
-    await user.deleteOne();
-
-    res.json({
-      message: "User deleted",
+    return res.status(200).json({
+      message: "Profile updated successfully",
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role
+      }
     });
+
   } catch (error) {
-    res.status(500).json({
-      message: error.message,
-    });
-  }
-};
+    console.error("Update profile error:", error);
 
-export const toggleAdmin = async (
-  req,
-  res
-) => {
-  try {
-    const user = await User.findById(
-      req.params.id
-    );
-
-    if (!user) {
-      return res.status(404).json({
-        message: "User not found",
-      });
-    }
-
-    user.isAdmin = !user.isAdmin;
-
-    const updatedUser =
-      await user.save();
-
-    res.json(updatedUser);
-  } catch (error) {
-    res.status(500).json({
-      message: error.message,
+    return res.status(500).json({
+      message: "Unable to update profile"
     });
   }
 };
