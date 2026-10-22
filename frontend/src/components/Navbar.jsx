@@ -1,9 +1,13 @@
+
 import { Link, useNavigate } from "react-router-dom";
 import { Search, Heart, ShoppingCart, User } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { clearCart, setCartItems } from "../redux/cartSlice";
-import { clearWishlist, setWishlistItems } from "../redux/wishlistSlice";
+import {
+  clearWishlist,
+  setWishlistItems,
+} from "../redux/wishlistSlice";
 import AuthModal from "./AuthModal";
 import api from "../utils/api";
 
@@ -45,51 +49,51 @@ function Navbar() {
   }, []);
 
   // Load cart and wishlist when the app starts
-useEffect(() => {
-  const token = localStorage.getItem("token");
+  useEffect(() => {
+    const token = localStorage.getItem("token");
 
-  if (!token) {
-    dispatch(clearCart());
-    dispatch(clearWishlist());
-    return;
-  }
+    if (!token) {
+      dispatch(clearCart());
+      dispatch(clearWishlist());
+      return;
+    }
 
-  const loadUserData = async () => {
-    try {
-      const [cartResponse, wishlistResponse] = await Promise.all([
-        api.get("/cart"),
-        api.get("/wishlist"),
-      ]);
+    const loadUserData = async () => {
+      try {
+        const [cartResponse, wishlistResponse] = await Promise.all([
+          api.get("/cart"),
+          api.get("/wishlist"),
+        ]);
 
-      const cartItems = (cartResponse.data.cart?.items ?? [])
-        .filter((item) => item.product)
-        .map((item) => ({
-          product: {
-            ...item.product,
-            id: item.product._id,
-          },
-          quantity: item.quantity,
+        const cartItems = (cartResponse.data.cart?.items ?? [])
+          .filter((item) => item.product)
+          .map((item) => ({
+            product: {
+              ...item.product,
+              id: item.product._id,
+            },
+            quantity: item.quantity,
+          }));
+
+        const wishlistItems = (
+          wishlistResponse.data.wishlist?.products ?? []
+        ).map((product) => ({
+          ...product,
+          id: product._id,
         }));
 
-      const wishlistItems = (
-        wishlistResponse.data.wishlist?.products ?? []
-      ).map((product) => ({
-        ...product,
-        id: product._id,
-      }));
+        dispatch(setCartItems(cartItems));
+        dispatch(setWishlistItems(wishlistItems));
+      } catch (error) {
+        console.error(
+          "Error loading cart and wishlist:",
+          error.response?.data?.message || error.message
+        );
+      }
+    };
 
-      dispatch(setCartItems(cartItems));
-      dispatch(setWishlistItems(wishlistItems));
-    } catch (error) {
-      console.error(
-        "Error loading cart and wishlist:",
-        error.response?.data?.message || error.message
-      );
-    }
-  };
-
-  loadUserData();
-}, [dispatch]);
+    loadUserData();
+  }, [dispatch]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -104,16 +108,18 @@ useEffect(() => {
     };
   }, []);
 
+  // Search products
   const handleSearch = (e) => {
     e.preventDefault();
 
     if (!searchQuery.trim()) return;
 
     navigate(
-      `/products?search=${encodeURIComponent(searchQuery)}`
+      `/products?search=${encodeURIComponent(searchQuery.trim())}`
     );
   };
 
+  // Logout
   const handleLogout = () => {
     localStorage.removeItem("userInfo");
     localStorage.removeItem("token");
@@ -131,7 +137,10 @@ useEffect(() => {
     <>
       <nav className="bg-card border-b border-border sticky top-0 z-50 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+          {/* Main Navbar */}
           <div className="flex items-center justify-between h-20">
+
             {/* Logo */}
             <Link to="/" className="flex items-center">
               <h1 className="text-3xl font-serif text-primary italic">
@@ -139,7 +148,7 @@ useEffect(() => {
               </h1>
             </Link>
 
-            {/* Navigation */}
+            {/* Desktop Navigation */}
             <div className="hidden md:flex items-center space-x-8">
               <Link
                 to="/"
@@ -177,16 +186,18 @@ useEffect(() => {
               </Link>
             </div>
 
-            {/* Search */}
+            {/* Desktop Search Bar */}
             <form
               onSubmit={handleSearch}
               className="hidden lg:flex items-center flex-1 max-w-md mx-8"
             >
               <div className="relative w-full">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+                />
 
                 <input
-                  type="text"
+                  type="search"
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
@@ -197,9 +208,11 @@ useEffect(() => {
 
             {/* Right Icons */}
             <div className="flex items-center space-x-5">
+
               {/* Wishlist */}
               <Link
                 to="/wishlist"
+                aria-label="Wishlist"
                 className="relative text-foreground hover:text-primary transition-colors"
               >
                 <Heart className="w-6 h-6" />
@@ -214,6 +227,7 @@ useEffect(() => {
               {/* Cart */}
               <Link
                 to="/cart"
+                aria-label="Cart"
                 className="relative text-foreground hover:text-primary transition-colors"
               >
                 <ShoppingCart className="w-6 h-6" />
@@ -230,10 +244,12 @@ useEffect(() => {
                 {userInfo ? (
                   <>
                     <button
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation();
                         setShowDropdown(!showDropdown);
                       }}
+                      aria-label="Profile menu"
                       className="w-10 h-10 rounded-full bg-primary text-primary-foreground font-semibold flex items-center justify-center"
                     >
                       {userInfo.name?.charAt(0).toUpperCase()}
@@ -255,6 +271,7 @@ useEffect(() => {
                         </div>
 
                         <button
+                          type="button"
                           onClick={() => navigate("/profile")}
                           className="w-full text-left px-4 py-3 hover:bg-accent transition-colors"
                         >
@@ -262,6 +279,7 @@ useEffect(() => {
                         </button>
 
                         <button
+                          type="button"
                           onClick={() => navigate("/my-orders")}
                           className="w-full text-left px-4 py-3 hover:bg-accent transition-colors"
                         >
@@ -269,6 +287,7 @@ useEffect(() => {
                         </button>
 
                         <button
+                          type="button"
                           onClick={handleLogout}
                           className="w-full text-left px-4 py-3 text-red-500 hover:bg-accent transition-colors"
                         >
@@ -279,7 +298,9 @@ useEffect(() => {
                   </>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setShowAuthModal(true)}
+                    aria-label="Login or register"
                     className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center hover:bg-primary/20 transition-colors"
                   >
                     <User className="w-5 h-5 text-primary" />
@@ -288,9 +309,32 @@ useEffect(() => {
               </div>
             </div>
           </div>
+
+          {/* Mobile and Tablet Search Bar */}
+          <form
+            onSubmit={handleSearch}
+            className="lg:hidden pb-4"
+          >
+            <div className="relative w-full">
+              <Search
+                className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground"
+              />
+
+              <input
+                type="search"
+                placeholder="Search products..."
+                aria-label="Search products"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-input-background border border-border rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+          </form>
+
         </div>
       </nav>
 
+      {/* Authentication Modal */}
       <AuthModal
         isOpen={showAuthModal}
         onClose={() => setShowAuthModal(false)}

@@ -51,7 +51,7 @@ function Products() {
           const { data } = await api.get("/products", {
             params: {
               page,
-              limit: 100,
+              limit: 50
             },
           });
 
