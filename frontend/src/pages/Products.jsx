@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import ProductCard from "../components/ProductCard";
@@ -15,8 +14,12 @@ function Products() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [selectedCategory, setSelectedCategory] = useState(
-    searchParams.get("category") || ""
+  const [selectedCategories, setSelectedCategories] = useState(
+    () =>
+      (searchParams.get("category") || "")
+        .split(",")
+        .map((category) => category.trim())
+        .filter(Boolean)
   );
   const [searchQuery, setSearchQuery] = useState(
     searchParams.get("search") || ""
@@ -30,7 +33,13 @@ function Products() {
 
   // Sync category and search from URL
   useEffect(() => {
-    setSelectedCategory(searchParams.get("category") || "");
+    setSelectedCategories(
+      (searchParams.get("category") || "")
+        .split(",")
+        .map((category) => category.trim())
+        .filter(Boolean)
+    );
+
     setSearchQuery(searchParams.get("search") || "");
     setCurrentPage(1);
   }, [searchParams]);
@@ -107,8 +116,8 @@ function Products() {
           params.search = searchQuery.trim();
         }
 
-        if (selectedCategory) {
-          params.category = selectedCategory;
+        if (selectedCategories.length > 0) {
+          params.category = selectedCategories.join(",");
         }
 
         if (sortBy === "price-low") {
@@ -155,14 +164,17 @@ function Products() {
   }, [
     currentPage,
     searchQuery,
-    selectedCategory,
+    selectedCategories,
     sortBy,
   ]);
 
   const toggleCategory = (category) => {
-    setSelectedCategory((prev) =>
-      prev === category ? "" : category
+    setSelectedCategories((prev) =>
+      prev.includes(category)
+        ? prev.filter((item) => item !== category)
+        : [...prev, category]
     );
+
     setCurrentPage(1);
   };
 
@@ -172,7 +184,7 @@ function Products() {
   };
 
   const clearFilters = () => {
-    setSelectedCategory("");
+    setSelectedCategories([]);
     setSearchQuery("");
     setSortBy("featured");
     setCurrentPage(1);
@@ -253,7 +265,7 @@ function Products() {
                     >
                       <input
                         type="checkbox"
-                        checked={selectedCategory === category}
+                        checked={selectedCategories.includes(category)}
                         onChange={() =>
                           toggleCategory(category)
                         }

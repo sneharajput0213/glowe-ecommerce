@@ -3,7 +3,7 @@ import Product from "../models/productModel.js";
 import Cart from "../models/cartModel.js";
 import { restoreOrderStock } from "../services/inventoryService.js";
 import mongoose from "mongoose";
-
+import { getCancellationRefundDetails, initiateOrderRefund } from "../services/refundService.js";
 
 export const createOrder = async (req, res) => {
     const { shippingAddress } = req.validatedBody;
@@ -129,12 +129,13 @@ export const createOrder = async (req, res) => {
 };
 
 export const getMyOrders = async (req, res) => {
-
     const userId = req.user.id;
 
     try {
-
-        const orders = await Order.find({ user: userId })
+        const orders = await Order.find({
+            user: userId,
+            paymentStatus: "paid"
+        })
             .populate("items.product")
             .sort({ createdAt: -1 });
 
@@ -143,11 +144,11 @@ export const getMyOrders = async (req, res) => {
         });
 
     } catch (error) {
+        console.error("Get my orders error:", error);
 
         return res.status(500).json({
             message: "Server error"
         });
-
     }
 };
 
@@ -180,7 +181,6 @@ export const getOrderById = async (req, res) => {
         });
     }
 };
-
 
 export const cancelOrder = async (req, res) => {
     const { orderId } = req.validatedParams;
@@ -325,11 +325,87 @@ export const cancelOrder = async (req, res) => {
     }
 };
 
+export const requestPaidOrderCancellation = async (req, res) => {
+    const { orderId } = req.validatedParams;
+    const userId = req.user.id;
+
+    try {
+        const order = await Order.findOneAndUpdate(
+            {
+                _id: orderId,
+                user: userId,
+                paymentStatus: "paid",
+                orderStatus: {
+                    $in: ["confirmed", "processing"]
+                },
+                refundStatus: "none",
+                items: {
+                    $not: {
+                        $elemMatch: {
+                            fulfillmentStatus: {
+                                $in: ["shipped", "delivered"]
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                $set: {
+                    orderStatus: "cancellation_requested",
+                    cancellationRequestedAt: new Date()
+                }
+            },
+            {
+                new: true,
+                runValidators: true
+            }
+        );
+
+        if (!order) {
+            return res.status(409).json({
+                message:
+                    "Order is not eligible for cancellation or cancellation has already been requested."
+            });
+        }
+
+        const refundDetails =
+            await getCancellationRefundDetails(order._id);
+
+        const result = await initiateOrderRefund({
+            orderId: refundDetails.orderId,
+            txnid: refundDetails.txnid,
+            amount: refundDetails.amount,
+            mode: "customer_cancellation"
+        });
+
+        return res.status(result.status).json({
+            message: result.message,
+            orderId: order._id,
+            orderStatus: "cancellation_requested",
+            refundStatus: result.refundStatus ?? "none",
+            ...(result.refundRequestId && {
+                refundRequestId: result.refundRequestId
+            })
+        });
+
+    } catch (error) {
+        console.error(
+            "Customer cancellation error:",
+            error.message
+        );
+
+        return res.status(500).json({
+            message:
+                "Cancellation requires attention. Please contact support if the request remains pending."
+        });
+    }
+};
 
 export const getSellerOrders = async (req, res) => {
     try {
         const orders = await Order.find({
-            "items.seller": req.user.id
+            "items.seller": req.user.id,
+            paymentStatus: "paid"
         })
             .populate("user", "name")
             .sort({ createdAt: -1 });
@@ -401,9 +477,9 @@ export const updateSellerOrderItemStatus = async (req, res) => {
             });
         }
 
-        if (order.orderStatus === "cancelled") {
+        if (["cancelled", "cancellation_requested"].includes(order.orderStatus)) {
             return res.status(400).json({
-                message: "Cannot process a cancelled order"
+                message: "Cannot process a cancelled order or an order awaiting cancellation"
             });
         }
 
@@ -419,23 +495,121 @@ export const updateSellerOrderItemStatus = async (req, res) => {
             });
         }
 
-        item.fulfillmentStatus = fulfillmentStatus;
+       const updatedOrder = await Order.findOneAndUpdate(
+            {
+                _id: orderId,
+                paymentStatus: "paid",
+                orderStatus: {
+                    $nin: ["cancelled", "cancellation_requested"]
+                },
+                items: {
+                    $elemMatch: {
+                        _id: itemId,
+                        seller: req.user.id,
+                        fulfillmentStatus: item.fulfillmentStatus
+                    }
+                }
+            },
+            [
+                {
+                    $set: {
+                        items: {
+                            $map: {
+                                input: "$items",
+                                as: "orderItem",
+                                in: {
+                                    $cond: [
+                                        { $eq: ["$$orderItem._id", item._id] },
+                                        {
+                                            $mergeObjects: [
+                                                "$$orderItem",
+                                                { fulfillmentStatus }
+                                            ]
+                                        },
+                                        "$$orderItem"
+                                    ]
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    $set: {
+                        orderStatus: {
+                            $switch: {
+                                branches: [
+                                    {
+                                        case: {
+                                            $allElementsTrue: {
+                                                $map: {
+                                                    input: "$items",
+                                                    as: "i",
+                                                    in: {
+                                                        $eq: [
+                                                            "$$i.fulfillmentStatus",
+                                                            "delivered"
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        then: "delivered"
+                                    },
+                                    {
+                                        case: {
+                                            $allElementsTrue: {
+                                                $map: {
+                                                    input: "$items",
+                                                    as: "i",
+                                                    in: {
+                                                        $in: [
+                                                            "$$i.fulfillmentStatus",
+                                                            ["shipped", "delivered"]
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        then: "shipped"
+                                    },
+                                    {
+                                        case: {
+                                            $anyElementTrue: {
+                                                $map: {
+                                                    input: "$items",
+                                                    as: "i",
+                                                    in: {
+                                                        $in: [
+                                                            "$$i.fulfillmentStatus",
+                                                            ["processing", "shipped", "delivered"]
+                                                        ]
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        then: "processing"
+                                    }
+                                ],
+                                default: "confirmed"
+                            }
+                        }
+                    }
+                }
+            ],
+            {
+                new: true
+            }
+        );
 
-        const statuses = order.items.map(item => item.fulfillmentStatus);
-
-        if (statuses.every(status => status === "delivered")) {
-            order.orderStatus = "delivered";
-        } else if (statuses.every(status => ["shipped", "delivered"].includes(status))) {
-            order.orderStatus = "shipped";
-        } else if (statuses.some(status => ["processing", "shipped", "delivered"].includes(status))) {
-            order.orderStatus = "processing";
+        if (!updatedOrder) {
+            return res.status(409).json({
+                message: "Order status changed. Please refresh and try again."
+            });
         }
-
-        await order.save();
 
         return res.status(200).json({
             message: "Fulfillment status updated successfully",
-            item
+            item: updatedOrder.items.id(itemId)
         });
 
     } catch (error) {

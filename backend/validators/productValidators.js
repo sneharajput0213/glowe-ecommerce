@@ -98,7 +98,23 @@ export const updateProductSchema = createProductSchema
 
 export const productQuerySchema = z.object({
   search: z.string().trim().max(100).optional(),
-  category: z.string().trim().max(100).optional(),
+  category: z.string()
+    .trim()
+    .max(1000, "Category filter is too long")
+    .transform((value) =>
+      [...new Set(
+        value
+          .split(",")
+          .map((category) => category.trim())
+          .filter(Boolean)
+      )]
+    )
+    .pipe(
+      z.array(
+        z.string().min(2).max(100)
+      ).max(20, "You can select up to 20 categories")
+    )
+    .optional(),
   brand: z.string().trim().max(100).optional(),
 
   minPrice: optionalPriceFilter,

@@ -27,11 +27,9 @@ export const initiateRefundSchema = z.object({
 }).strict();
 
 export const refundStatusParamsSchema = z.object({
-    orderId: z.string()
-        .regex(/^[0-9a-fA-F]{24}$/, "Invalid order ID"),
-
-    txnid: z.string()
-        .trim()
-        .min(1, "Transaction ID is required")
-        .max(100, "Transaction ID is too long")
+    orderId: z.string().regex(
+        /^[0-9a-fA-F]{24}$/,
+        "Invalid order ID"
+    ),
+    txnid: z.string().min(1, "Transaction ID is required")
 }).strict();

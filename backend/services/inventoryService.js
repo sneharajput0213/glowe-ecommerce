@@ -41,7 +41,9 @@ export const reserveOrderStock = async (orderId, session) => {
             _id: orderId,
             inventoryStatus: "restored",
             paymentStatus: "failed",
-            orderStatus: { $ne: "cancelled" }
+            orderStatus: {
+                $nin: ["cancelled", "cancellation_requested"]
+            }
         },
         {
             $set: { inventoryStatus: "reserved" }

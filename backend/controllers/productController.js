@@ -138,7 +138,6 @@ export const createProduct = async (req, res) => {
     }
 };
 
-
 export const getProducts = async (req, res) => {
   const parsed = productQuerySchema.safeParse(req.query);
 
@@ -176,10 +175,11 @@ export const getProducts = async (req, res) => {
     ];
   }
 
-  if (category) {
+  if (category?.length > 0) {
     filter.category = {
-      $regex: escapeRegex(category),
-      $options: "i"
+      $in: category.map(
+        (cat) => new RegExp(`^${escapeRegex(cat)}$`, "i")
+      )
     };
   }
 

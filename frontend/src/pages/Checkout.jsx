@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
@@ -151,12 +150,23 @@ export default function Checkout() {
   const total = subtotal + shipping + tax;
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+  const { name, value } = e.target;
 
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+      if (name === "phone") {
+        const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+
+        setFormData((prev) => ({
+          ...prev,
+          phone: digitsOnly,
+        }));
+
+        return;
+      }
+
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
   };
 
   // PLACE ORDER AND INITIATE PAYU
@@ -166,23 +176,13 @@ export default function Checkout() {
 
     try {
       const shippingAddress = {
+        phone: formData.phone.trim(),
         address: formData.address.trim(),
         city: formData.city.trim(),
         state: formData.state.trim(),
         postalCode: formData.zipCode.trim(),
         country: "India",
       };
-
-      // Check that the user's saved profile has a phone number.
-      const { data: profileData } = await api.get(
-        "/auth/profile"
-      );
-
-      if (!profileData.user?.phone) {
-        throw new Error(
-          "Please add your phone number to your profile before checkout."
-        );
-      }
 
       // Step 1: Create the order from the backend cart.
       const { data: orderData } = await api.post(
@@ -444,9 +444,14 @@ export default function Checkout() {
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="Phone Number"
+                  placeholder="10-digit Mobile Number"
                   value={formData.phone}
                   onChange={handleInputChange}
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  minLength={10}
+                  maxLength={10}
+                  title="Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9"
                   required
                   className="w-full px-4 py-3 bg-input-background border border-border rounded-xl"
                 />

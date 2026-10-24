@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Trash2, Plus, Minus, ShoppingBag, ArrowRight } from 'lucide-react';
 import api from "../utils/api";
+import { toast } from "sonner";
 
 function Cart() {
   const dispatch = useDispatch();
@@ -54,7 +55,6 @@ const loadCart = useCallback(async () => {
     loadCart();
   }, [loadCart]);
 
-  
 const handleUpdateQuantity = async (productId, newQuantity) => {
   if (newQuantity < 1) return;
 
@@ -66,26 +66,42 @@ const handleUpdateQuantity = async (productId, newQuantity) => {
     await loadCart();
     window.dispatchEvent(new Event("cartUpdated"));
   } catch (error) {
-    alert(
+    toast.error(
       error.response?.data?.message ||
-      "Could not update cart quantity."
+        "Could not update cart quantity."
     );
   }
 };
-
   
-const handleRemove = async (productId) => {
-  try {
-    await api.delete(`/cart/${productId}`);
+const handleRemove = (productId) => {
+  toast("Remove this product?", {
+    description: "This product will be removed from your cart.",
+    duration: 10000,
 
-    await loadCart();
-    window.dispatchEvent(new Event("cartUpdated"));
-  } catch (error) {
-    alert(
-      error.response?.data?.message ||
-      "Could not remove product from cart."
-    );
-  }
+    action: {
+      label: "Remove",
+      onClick: async () => {
+        try {
+          await api.delete(`/cart/${productId}`);
+
+          await loadCart();
+          window.dispatchEvent(new Event("cartUpdated"));
+
+          toast.success("Product removed from cart.");
+        } catch (error) {
+          toast.error(
+            error.response?.data?.message ||
+              "Could not remove product from cart."
+          );
+        }
+      },
+    },
+
+    cancel: {
+      label: "Keep",
+      onClick: () => {},
+    },
+  });
 };
 
   const subtotal = cartItems.reduce(

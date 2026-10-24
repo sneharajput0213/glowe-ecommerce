@@ -6,7 +6,6 @@ import React, {
 import { Link } from "react-router-dom";
 
 import {
-  Sparkles,
   ArrowRight,
   Star,
 } from "lucide-react";
@@ -120,7 +119,6 @@ const handleNewsletterSubmit = async (e) => {
 
             <div className="space-y-8">
               <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary px-4 py-2 rounded-full text-sm">
-                <Sparkles className="w-4 h-4" />
                 <span>
                   New Collection Available
                 </span>

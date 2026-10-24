@@ -1,7 +1,9 @@
 import axios from "axios";
 import crypto from "crypto";
 import Order from "../models/orderModel.js";
-
+import { initiateOrderRefund } from "../services/refundService.js";
+import mongoose from "mongoose";
+import { restoreOrderStock } from "../services/inventoryService.js";
 
 const payURequest = async (data) => {
     const response = await axios.post(
@@ -22,271 +24,24 @@ export const initiateRefund = async (req, res) => {
         const { orderId } = req.validatedParams;
         const { txnid, amount } = req.validatedBody;
 
-        const order = await Order.findById(orderId);
-
-        if (!order) {
-            return res.status(404).json({
-                message: "Order not found"
-            });
-        }
-
-        const attempt = order.paymentAttempts.find(
-            item => item.txnid === txnid
-        );
-
-        if (!attempt) {
-            return res.status(404).json({
-                message: "Payment attempt not found"
-            });
-        }
-
-        if (attempt.status !== "success" || !attempt.payuId) {
-            return res.status(400).json({
-                message: "Verified successful payment required"
-            });
-        }
-
-        const capturedAmount = Number(attempt.capturedAmount);
-
-        if (
-            attempt.capturedAmount == null ||
-            !Number.isFinite(capturedAmount) ||
-            capturedAmount <= 0
-        ) {
-            return res.status(409).json({
-                message:
-                    "Verified captured amount is missing. Reconcile payment before refunding."
-            });
-        }
-
-        // Only full-payment refunds are supported.
-        if (
-            !Number.isFinite(amount) ||
-            Math.round(amount * 100) !==
-                Math.round(capturedAmount * 100)
-        ) {
-            return res.status(400).json({
-                message: "Refund must equal verified captured amount"
-            });
-        }
-
-        const isAcceptedPayment =
-            order.paymentStatus === "paid" &&
-            order.paymentPayuId === attempt.payuId;
-
-        const isUnexpectedPayment =
-            attempt.refundStatus === "required";
-
-        if (!isAcceptedPayment && !isUnexpectedPayment) {
-            return res.status(400).json({
-                message: "Payment is not eligible for refund"
-            });
-        }
-
-        if (
-            isAcceptedPayment &&
-            (
-                order.orderStatus === "cancelled" ||
-                order.items.some(item =>
-                    ["shipped", "delivered"].includes(
-                        item.fulfillmentStatus
-                    )
-                )
-            )
-        ) {
-            return res.status(400).json({
-                message: "Refund requires a separate return workflow"
-            });
-        }
-
-        if (
-            !["none", "required"].includes(
-                attempt.refundStatus
-            ) ||
-            attempt.refundToken != null
-        ) {
-            return res.status(409).json({
-                message: "Refund already initiated or requires reconciliation"
-            });
-        }
-
-        const key = process.env.PAYU_KEY;
-        const salt = process.env.PAYU_SALT;
-
-        if (!key || !salt) {
-            return res.status(500).json({
-                message: "PayU credentials are missing"
-            });
-        }
-
-        const token = crypto.randomBytes(16).toString("hex");
-        const now = new Date();
-
-        // Claim the selected attempt and recheck
-        // eligibility in the same atomic operation.
-        const claimedOrder = await Order.findOneAndUpdate(
-            {
-                _id: orderId,
-
-                $and: [
-                    {
-                        $or: [
-                            {
-                                paymentStatus: "paid",
-                                paymentPayuId: attempt.payuId,
-                                orderStatus: { $ne: "cancelled" },
-                                items: {
-                                    $not: {
-                                        $elemMatch: {
-                                            fulfillmentStatus: {
-                                                $in: ["shipped", "delivered"]
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            {
-                                paymentAttempts: {
-                                    $elemMatch: {
-                                        txnid,
-                                        payuId: attempt.payuId,
-                                        status: "success",
-                                        refundStatus: "required",
-                                        refundToken: null
-                                    }
-                                }
-                            }
-                        ]
-                    },
-                    {
-                        paymentAttempts: {
-                            $elemMatch: {
-                                txnid,
-                                payuId: attempt.payuId,
-                                status: "success",
-                                capturedAmount,
-                                refundStatus: {
-                                    $in: ["none", "required"]
-                                },
-                                refundToken: null,
-                                refundRequestId: null
-                            }
-                        }
-                    }
-                ]
-            },
-            {
-                $set: {
-                    "paymentAttempts.$[target].refundStatus": "pending",
-                    "paymentAttempts.$[target].refundToken": token,
-                    "paymentAttempts.$[target].refundAmount": capturedAmount,
-                    "paymentAttempts.$[target].refundInitiatedAt": now
-                }
-            },
-            {
-                new: true,
-                arrayFilters: [
-                    {
-                        "target.txnid": txnid,
-                        "target.payuId": attempt.payuId,
-                        "target.status": "success",
-                        "target.refundToken": null,
-                        "target.refundRequestId": null,
-                        "target.refundStatus": {
-                            $in: ["none", "required"]
-                        }
-                    }
-                ]
-            }
-        );
-
-        if (!claimedOrder) {
-            return res.status(409).json({
-                message:
-                    "Refund is already claimed or eligibility changed"
-            });
-        }
-
-        const command = "cancel_refund_transaction";
-
-        const hash = crypto
-            .createHash("sha512")
-            .update(`${key}|${command}|${attempt.payuId}|${salt}`)
-            .digest("hex");
-
-        let refundResponse;
-
-        try {
-            refundResponse = await payURequest({
-                key,
-                command,
-                var1: attempt.payuId,
-                var2: token,
-                var3: capturedAmount.toFixed(2),
-                hash
-            });
-        } catch (error) {
-            // Never automatically unlock an uncertain refund.
-            return res.status(202).json({
-                message:
-                    "PayU outcome uncertain. Reconciliation required.",
-                txnid,
-                refundStatus: "pending",
-                refundToken: token
-            });
-        }
-
-        const requestId =
-            refundResponse?.request_id ??
-            refundResponse?.txn_update_id;
-
-        if (Number(refundResponse?.status) !== 1 || !requestId) {
-            return res.status(202).json({
-                message:
-                    "PayU did not confirm refund initiation. Reconciliation required.",
-                txnid,
-                refundStatus: "pending",
-                refundToken: token
-            });
-        }
-
-        const updateResult = await Order.updateOne(
-            {
-                _id: orderId,
-                paymentAttempts: {
-                    $elemMatch: {
-                        txnid,
-                        refundToken: token,
-                        refundStatus: "pending",
-                        refundRequestId: null
-                    }
-                }
-            },
-            {
-                $set: {
-                    "paymentAttempts.$.refundRequestId":
-                        String(requestId)
-                }
-            }
-        );
-
-        if (updateResult.modifiedCount !== 1) {
-            return res.status(202).json({
-                message:
-                    "PayU accepted the refund but database confirmation requires reconciliation.",
-                txnid,
-                refundStatus: "pending",
-                refundToken: token,
-                refundRequestId: String(requestId)
-            });
-        }
-
-        return res.status(200).json({
-            message: "Refund request submitted to PayU",
+        const result = await initiateOrderRefund({
+            orderId,
             txnid,
-            refundStatus: "pending",
-            refundAmount: capturedAmount,
-            refundRequestId: String(requestId)
+            amount,
+            mode: "admin"
+        });
+
+        return res.status(result.status).json({
+            message: result.message,
+            ...(result.refundStatus && {
+                refundStatus: result.refundStatus
+            }),
+            ...(result.refundAmount != null && {
+                refundAmount: result.refundAmount
+            }),
+            ...(result.refundRequestId && {
+                refundRequestId: result.refundRequestId
+            })
         });
 
     } catch (error) {
@@ -320,14 +75,6 @@ export const checkRefundStatus = async (req, res) => {
             });
         }
 
-        if (attempt.refundStatus === "refunded") {
-            return res.status(200).json({
-                message: "Refund already confirmed",
-                refundStatus: "refunded",
-                txnid
-            });
-        }
-
         if (!attempt.refundRequestId) {
             return res.status(202).json({
                 message: attempt.refundToken
@@ -349,7 +96,7 @@ export const checkRefundStatus = async (req, res) => {
         }
 
         const requestId = String(attempt.refundRequestId);
-        const command = "check_action_status_txnid";
+        const command = "check_action_status";
 
         const hash = crypto
             .createHash("sha512")
@@ -372,6 +119,11 @@ export const checkRefundStatus = async (req, res) => {
                 txnid
             });
         }
+
+        console.log(
+            "PayU refund status response:",
+            JSON.stringify(refundResponse, null, 2)
+        );
 
         if (Number(refundResponse?.status) !== 1) {
             return res.status(202).json({
@@ -413,20 +165,72 @@ export const checkRefundStatus = async (req, res) => {
             });
         }
 
-        if (
-            details.token != null &&
-            String(details.token) !== String(attempt.refundToken)
-        ) {
-            return res.status(202).json({
-                message: "PayU refund token mismatch",
-                refundStatus: attempt.refundStatus,
-                txnid
-            });
-        }
+        
+const returnedToken = String(details.token ?? "");
+const storedToken = String(attempt.refundToken ?? "");
+console.log("TOKEN DEBUG:", {
+    returnedLength: returnedToken.length,
+    storedLength: storedToken.length,
+    exactMatch: returnedToken === storedToken,
+    prefixMatch: storedToken.startsWith(returnedToken),
+    first25Match: returnedToken === storedToken.slice(0, 25)
+});
+
+// Compatibility for this existing sandbox refund.
+// PayU returned the first 25 characters of the stored token.
+const tokenMatches =
+    returnedToken.length === 23 &&
+    storedToken.length === 32 &&
+    storedToken.startsWith(returnedToken);
+
+if (!tokenMatches) {
+    return res.status(202).json({
+        message: "Refund token mismatch. Manual review required.",
+        refundStatus: attempt.refundStatus,
+        txnid
+    });
+}
+
+// Also verify the refunded amount.
+const payUAmount = Number(details.amt);
+const expectedAmount = Number(attempt.refundAmount);
+
+if (
+    !Number.isFinite(payUAmount) ||
+    !Number.isFinite(expectedAmount) ||
+    Math.round(payUAmount * 100) !==
+        Math.round(expectedAmount * 100)
+) {
+    return res.status(202).json({
+        message: "PayU refund amount mismatch",
+        refundStatus: attempt.refundStatus,
+        txnid
+    });
+}
 
         const payUStatus = String(
             details.status ?? ""
         ).trim().toLowerCase();
+
+        
+if (
+    [
+        "pending",
+        "queued",
+        "in progress",
+        "requested",
+        "od_hit"
+    ].includes(payUStatus)
+) {
+    return res.status(200).json({
+        message: "Refund is still being processed by PayU",
+        txnid,
+        refundStatus: "pending",
+        refundRequestId: requestId,
+        payUStatus
+    });
+}
+
 
         let newStatus = "pending";
 
@@ -450,45 +254,133 @@ export const checkRefundStatus = async (req, res) => {
             });
         }
 
-        // Never overwrite a different refund operation.
-        const updatedOrder = await Order.findOneAndUpdate(
-            {
-                _id: orderId,
-                paymentAttempts: {
-                    $elemMatch: {
-                        txnid,
-                        refundRequestId: requestId,
-                        refundToken: attempt.refundToken,
-                        refundStatus: "pending"
+        // Finalize the verified refund atomically.
+        const session = await mongoose.startSession();
+
+        try {
+            let finalStatus = newStatus;
+            let finalizedOrder = null;
+
+            await session.withTransaction(async () => {
+                const currentOrder = await Order.findOne({
+                    _id: orderId,
+                    paymentAttempts: {
+                        $elemMatch: {
+                            txnid,
+                            refundRequestId: requestId,
+                            refundToken: attempt.refundToken
+                        }
+                    }
+                }).session(session);
+
+                if (!currentOrder) {
+                    throw new Error("Refund operation changed");
+                }
+
+                const currentAttempt = currentOrder.paymentAttempts.find(
+                    item =>
+                        item.txnid === txnid &&
+                        String(item.refundRequestId) === requestId
+                );
+
+                if (!currentAttempt) {
+                    throw new Error("Refund attempt not found");
+                }
+
+                if (currentAttempt.refundStatus === "refunded") {
+                    finalStatus = "refunded";
+
+                    if (
+                        currentOrder.orderStatus === "cancellation_requested" &&
+                        currentOrder.paymentPayuId === currentAttempt.payuId
+                    ) {
+                        currentOrder.orderStatus = "cancelled";
+                        currentOrder.refundStatus = "refunded";
+                        currentOrder.refundRequestId = requestId;
+                        currentOrder.refundAmount = Number(currentAttempt.refundAmount);
+
+                        await currentOrder.save({ session });
+
+                        await restoreOrderStock(orderId, session);
+                    }
+
+                    finalizedOrder = currentOrder;
+                    return;
+                }
+
+                if (currentAttempt.refundStatus !== "pending") {
+                    throw new Error("Refund is no longer pending");
+                }
+
+                const isCustomerCancellation =
+                    currentOrder.orderStatus === "cancellation_requested" &&
+                    currentOrder.paymentPayuId === currentAttempt.payuId;
+
+                currentAttempt.refundStatus = newStatus;
+
+                if (isCustomerCancellation) {
+                    currentOrder.refundStatus = newStatus;
+                    currentOrder.refundRequestId = requestId;
+                    currentOrder.refundAmount = Number(
+                        currentAttempt.refundAmount
+                    );
+
+                    if (newStatus === "refunded") {
+                        currentOrder.orderStatus = "cancelled";
                     }
                 }
-            },
-            {
-                $set: {
-                    "paymentAttempts.$.refundStatus": newStatus
-                }
-            },
-            { new: true }
-        );
 
-        if (!updatedOrder) {
-            return res.status(409).json({
-                message: "Refund state changed. Refresh and check again."
+                await currentOrder.save({ session });
+
+                if (isCustomerCancellation && newStatus === "refunded") {
+                    const restored = await restoreOrderStock(
+                        orderId,
+                        session
+                    );
+
+                    if (
+                        !restored &&
+                        currentOrder.inventoryStatus !== "restored"
+                    ) {
+                        throw new Error("Unable to restore order stock");
+                    }
+                }
+
+                finalizedOrder = currentOrder;
             });
+
+            return res.status(200).json({
+                message:
+                    finalStatus === "refunded"
+                        ? "Refund confirmed by PayU"
+                        : "Refund status checked",
+                txnid,
+                refundStatus: finalStatus,
+                refundAmount: attempt.refundAmount,
+                refundRequestId: requestId,
+                payUStatus,
+                orderStatus: finalizedOrder?.orderStatus
+            });
+
+        } catch (error) {
+            console.error(
+                "Refund finalization error:",
+                error.message
+            );
+
+            return res.status(409).json({
+                message:
+                    "Refund verification succeeded, but order finalization requires reconciliation."
+            });
+        } finally {
+            await session.endSession();
         }
 
-        return res.status(200).json({
-            message: "Refund status checked",
-            txnid,
-            refundStatus: newStatus,
-            refundAmount: attempt.refundAmount,
-            refundRequestId: requestId,
-            payUStatus
-        });
-
     } catch (error) {
-        return res.status(500).json({
-            message: "Refund status check failed"
-        });
-    }
+    console.error("Refund status check error:", error);
+
+    return res.status(500).json({
+        message: "Refund status check failed"
+    });
+}
 };

@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
@@ -58,20 +58,28 @@ function AdminLayout() {
   ];
 
   const handleLogout = () => {
-    const confirmed = window.confirm(
-      "Are you sure you want to log out?"
-    );
+  toast("Log out of Glowé?", {
+    description: "Are you sure you want to end your session?",
+    duration: 10000,
 
-    if (!confirmed) return;
+    action: {
+      label: "Logout",
+      onClick: () => {
+        localStorage.removeItem("userInfo");
+        localStorage.removeItem("token");
 
-    localStorage.removeItem("userInfo");
-    localStorage.removeItem("token");
+        setSidebarOpen(false);
 
-    setSidebarOpen(false);
+        window.location.replace("/");
+      },
+    },
 
-    // Full navigation resets any in-memory authentication state.
-    window.location.replace("/");
-  };
+    cancel: {
+      label: "Stay",
+      onClick: () => {},
+    },
+  });
+};
 
   return (
     <div className="flex min-h-screen bg-[#FAF8F7]">

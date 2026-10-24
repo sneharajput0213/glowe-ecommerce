@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -44,80 +44,115 @@ export default function AdminSellers() {
   }, []);
 
   // Approve or reject a pending seller
-  const handleApproval = async (seller, sellerStatus) => {
-    const action =
-      sellerStatus === "approved" ? "approve" : "reject";
+  const handleApproval = (seller, sellerStatus) => {
+  const action =
+    sellerStatus === "approved" ? "approve" : "reject";
 
-    const confirmed = window.confirm(
-      `Are you sure you want to ${action} ${seller.name}'s seller application?`
-    );
+  toast(`${action === "approve" ? "Approve" : "Reject"} seller application?`, {
+    description: `Are you sure you want to ${action} ${seller.name}'s seller application?`,
+    duration: 15000,
 
-    if (!confirmed) return;
+    action: {
+      label: action === "approve" ? "Approve" : "Reject",
+      onClick: async () => {
+        try {
+          setUpdatingId(seller._id);
+          setError("");
 
-    try {
-      setUpdatingId(seller._id);
-      setError("");
+          const response = await api.patch(
+            `/admin/dashboard/sellers/${seller._id}/approval`,
+            { sellerStatus }
+          );
 
-      const response = await api.patch(
-        `/admin/dashboard/sellers/${seller._id}/approval`,
-        { sellerStatus }
-      );
+          setSellers((prev) =>
+            prev.map((account) =>
+              account._id === seller._id
+                ? { ...account, ...response.data.seller }
+                : account
+            )
+          );
 
-      setSellers((prev) =>
-        prev.map((account) =>
-          account._id === seller._id
-            ? { ...account, ...response.data.seller }
-            : account
-        )
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to update seller approval."
-      );
+          toast.success(
+            action === "approve"
+              ? `${seller.name}'s application approved successfully!`
+              : `${seller.name}'s application rejected.`
+          );
+        } catch (err) {
+          const message =
+            err.response?.data?.message ||
+            "Failed to update seller approval.";
 
-      await fetchSellers();
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+          setError(message);
+          toast.error(message);
+
+          await fetchSellers();
+        } finally {
+          setUpdatingId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
+};
 
   // Activate or deactivate an approved seller
-  const toggleStatus = async (seller) => {
-    if (seller.sellerStatus !== "approved") return;
+  const toggleStatus = (seller) => {
+  if (seller.sellerStatus !== "approved") return;
 
-    const nextStatus = !seller.isActive;
+  const nextStatus = !seller.isActive;
+  const action = nextStatus ? "Activate" : "Deactivate";
 
-    const confirmed = window.confirm(
-      `${nextStatus ? "Activate" : "Deactivate"} ${seller.name}'s seller account?`
-    );
+  toast(`${action} ${seller.name}'s seller account?`, {
+    description: `Are you sure you want to ${action.toLowerCase()} this seller account?`,
+    duration: 15000,
 
-    if (!confirmed) return;
+    action: {
+      label: action,
+      onClick: async () => {
+        try {
+          setUpdatingId(seller._id);
+          setError("");
 
-    try {
-      setUpdatingId(seller._id);
-      setError("");
+          await api.put(`/admin/sellers/${seller._id}/status`, {
+            isActive: nextStatus,
+          });
 
-      await api.put(`/admin/sellers/${seller._id}/status`, {
-        isActive: nextStatus,
-      });
+          setSellers((prev) =>
+            prev.map((account) =>
+              account._id === seller._id
+                ? { ...account, isActive: nextStatus }
+                : account
+            )
+          );
 
-      setSellers((prev) =>
-        prev.map((account) =>
-          account._id === seller._id
-            ? { ...account, isActive: nextStatus }
-            : account
-        )
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to update seller status."
-      );
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+          toast.success(
+            nextStatus
+              ? `${seller.name}'s seller account activated successfully!`
+              : `${seller.name}'s seller account deactivated successfully!`
+          );
+        } catch (err) {
+          const message =
+            err.response?.data?.message ||
+            "Failed to update seller status.";
+
+          setError(message);
+          toast.error(message);
+        } finally {
+          setUpdatingId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
+};
 
   const pendingSellers = sellers.filter(
     (seller) => seller.sellerStatus === "pending"

@@ -1,4 +1,4 @@
-
+import { reconcileExpiredPayments } from "./services/paymentExpiryService.js";
 import mongoose from "mongoose";
 import dotenv from "dotenv";
 
@@ -34,6 +34,31 @@ mongoose.connect(process.env.MONGO_URI)
 
         app.listen(PORT, () => {
             console.log(`Server running on port ${PORT}`);
+
+            let isReconciling = false;
+
+            const runReconciliation = async () => {
+                if (isReconciling) return;
+
+                isReconciling = true;
+
+                try {
+                    await reconcileExpiredPayments();
+                } catch (error) {
+                    console.error(
+                        "Scheduled payment reconciliation failed:",
+                        error.message
+                    );
+                } finally {
+                    isReconciling = false;
+                }
+            };
+
+            // Run once when the server starts
+            void runReconciliation();
+
+            // Check every 10 minutes
+            setInterval(runReconciliation, 10 * 60 * 1000);
         });
     })
     .catch((error) => {

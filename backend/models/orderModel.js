@@ -53,6 +53,14 @@ const orderSchema = new mongoose.Schema({
         required: true
     },
     shippingAddress: {
+        phone: {
+            type: String,
+            required: true,
+            match: [
+                /^[6-9]\d{9}$/,
+                "Enter a valid 10-digit Indian mobile number"
+            ]
+        },
         address: {
             type: String,
             required: true
@@ -179,12 +187,17 @@ const orderSchema = new mongoose.Schema({
             "pending",
             "confirmed",
             "processing",
+            "cancellation_requested",
             "shipped",
             "delivered",
             "cancelled"
         ],
         default: "pending",
         required: true
+    },
+    cancellationRequestedAt: {
+        type: Date,
+        default: null
     },
     inventoryStatus: {
         type: String,

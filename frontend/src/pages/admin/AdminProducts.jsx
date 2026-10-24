@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
@@ -41,58 +41,75 @@ export default function AdminProducts() {
   }, []);
 
   const toggleProductStatus = async (product) => {
-    try {
-      setUpdatingId(product._id);
+  try {
+    setUpdatingId(product._id);
 
-      const response = await api.put(
-        `/admin/products/${product._id}/status`,
-        { isActive: !product.isActive }
-      );
-
-      setProducts((prev) =>
-        prev.map((item) =>
-          item._id === product._id
-            ? {
-                ...item,
-                isActive: response.data.product.isActive,
-              }
-            : item
-        )
-      );
-    } catch (err) {
-      alert(
-        err.response?.data?.message ||
-          "Unable to update product status."
-      );
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const deleteProduct = async (product) => {
-    const confirmed = window.confirm(
-      `Delete "${product.name}"? This action cannot be undone.`
+    const response = await api.put(
+      `/admin/products/${product._id}/status`,
+      { isActive: !product.isActive }
     );
 
-    if (!confirmed) return;
+    setProducts((prev) =>
+      prev.map((item) =>
+        item._id === product._id
+          ? {
+              ...item,
+              isActive: response.data.product.isActive,
+            }
+          : item
+      )
+    );
 
-    try {
-      setUpdatingId(product._id);
+    toast.success(
+      response.data.product.isActive
+        ? "Product activated successfully!"
+        : "Product deactivated successfully!"
+    );
+  } catch (err) {
+    toast.error(
+      err.response?.data?.message ||
+        "Unable to update product status."
+    );
+  } finally {
+    setUpdatingId(null);
+  }
+};
 
-      await api.delete(`/products/${product._id}`);
+  const deleteProduct = (product) => {
+  toast(`Delete "${product.name}"?`, {
+    description: "This action cannot be undone.",
+    duration: 15000,
 
-      setProducts((prev) =>
-        prev.filter((item) => item._id !== product._id)
-      );
-    } catch (err) {
-      alert(
-        err.response?.data?.message ||
-          "Unable to delete product."
-      );
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+    action: {
+      label: "Delete",
+      onClick: async () => {
+        try {
+          setUpdatingId(product._id);
+
+          await api.delete(`/products/${product._id}`);
+
+          setProducts((prev) =>
+            prev.filter((item) => item._id !== product._id)
+          );
+
+          toast.success("Product deleted successfully!");
+        } catch (err) {
+          toast.error(
+            err.response?.data?.message ||
+              "Unable to delete product."
+          );
+        } finally {
+          setUpdatingId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
+};
 
   const filteredProducts = products.filter((product) => {
     const query = search.toLowerCase().trim();

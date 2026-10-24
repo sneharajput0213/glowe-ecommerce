@@ -1,4 +1,5 @@
-
+import { useEffect } from "react";
+import { toast, Toaster } from "sonner";
 import { Routes, Route, useLocation } from "react-router-dom";
 
 import Navbar from "./components/Navbar";
@@ -48,9 +49,32 @@ function App() {
     location.pathname.startsWith("/seller/") ||
     location.pathname === "/seller";
 
+    useEffect(() => {
+      const message = sessionStorage.getItem("authSuccess");
+
+      if (message) {
+        toast.success(message);
+        sessionStorage.removeItem("authSuccess");
+      }
+    }, []);
+
   return (
     <div className="min-h-screen">
       <ScrollToTop />
+
+      <Toaster
+      position="top-right"
+      richColors
+      closeButton
+      duration={3000}
+      toastOptions={{
+        style: {
+          borderRadius: "16px",
+          padding: "16px",
+          fontFamily: "inherit",
+        },
+      }}
+    />
 
       {!isPortal && <Navbar />}
 

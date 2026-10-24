@@ -2,6 +2,13 @@
 import { z } from "zod";
 
 const shippingAddressSchema = z.object({
+    phone: z.string()
+        .trim()
+        .regex(
+            /^[6-9]\d{9}$/,
+            "Enter a valid 10-digit Indian mobile number"
+        ),
+        
     address: z.string()
         .trim()
         .min(5, "Address must be at least 5 characters")

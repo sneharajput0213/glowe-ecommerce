@@ -38,7 +38,6 @@ app.use(cors({
     allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-
 app.use("/api", (req, res, next) => {
     const isPayUCallback =
         req.method === "POST" &&

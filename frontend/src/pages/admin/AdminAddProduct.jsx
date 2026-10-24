@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import api from "../../utils/api";
 
@@ -46,28 +46,31 @@ export default function AdminAddProduct() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
+  e.preventDefault();
+  setSaving(true);
+  setError("");
 
-    try {
-      await api.post("/products", {
-        ...formData,
-        price: Number(formData.price),
-        countInStock: Number(formData.countInStock),
-      });
+  try {
+    await api.post("/products", {
+      ...formData,
+      price: Number(formData.price),
+      countInStock: Number(formData.countInStock),
+    });
 
-      alert("Product Added Successfully");
-      setFormData({ ...initialFormData });
-    } catch (error) {
-      setError(
-        error.response?.data?.message ||
-          "Failed to add product."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+    toast.success("Product added successfully!");
+
+    setFormData({ ...initialFormData });
+  } catch (error) {
+    const message =
+      error.response?.data?.message ||
+      "Failed to add product.";
+
+    setError(message);
+    toast.error(message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   return (
     <div className="min-h-screen px-4 py-12">

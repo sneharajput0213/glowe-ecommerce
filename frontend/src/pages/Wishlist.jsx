@@ -8,6 +8,7 @@ import {
 import { Link } from 'react-router-dom';
 import { Heart, ShoppingCart, Trash2, ArrowRight } from 'lucide-react';
 import api from "../utils/api";
+import { toast } from "sonner";
   
 function Wishlist() {
   const dispatch = useDispatch();
@@ -50,18 +51,35 @@ const loadWishlist = useCallback(async () => {
     loadWishlist();
   }, [loadWishlist]);
 
-const handleRemove = async (productId) => {
-  try {
-    await api.delete(`/wishlist/${productId}`);
+const handleRemove = (productId) => {
+  toast("Remove from wishlist?", {
+    description: "This product will be removed from your wishlist.",
+    duration: 10000,
 
-    await loadWishlist();
-    window.dispatchEvent(new Event("wishlistUpdated"));
-  } catch (error) {
-    alert(
-      error.response?.data?.message ||
-      "Could not remove product from wishlist."
-    );
-  }
+    action: {
+      label: "Remove",
+      onClick: async () => {
+        try {
+          await api.delete(`/wishlist/${productId}`);
+
+          await loadWishlist();
+          window.dispatchEvent(new Event("wishlistUpdated"));
+
+          toast.success("Product removed from wishlist.");
+        } catch (error) {
+          toast.error(
+            error.response?.data?.message ||
+              "Could not remove product from wishlist."
+          );
+        }
+      },
+    },
+
+    cancel: {
+      label: "Keep",
+      onClick: () => {},
+    },
+  });
 };
 
   
@@ -78,10 +96,14 @@ const handleMoveToCart = async (product) => {
 
     window.dispatchEvent(new Event("cartUpdated"));
     window.dispatchEvent(new Event("wishlistUpdated"));
+
+    toast.success("Moved to cart!", {
+      description: `${product.name} has been moved to your cart.`,
+    });
   } catch (error) {
-    alert(
+    toast.error(
       error.response?.data?.message ||
-      "Could not move product to cart."
+        "Could not move product to cart."
     );
   }
 };

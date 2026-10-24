@@ -1,38 +1,38 @@
 import { useEffect, useState } from "react";
-import { User, Mail, ShieldCheck } from "lucide-react";
+import { User, Mail, ShieldCheck, Phone } from "lucide-react";
 import api from "../utils/api";
 
 export default function Profile() {
   const [userInfo, setUserInfo] = useState(null);
 
   useEffect(() => {
-  let isMounted = true;
+    let isMounted = true;
 
-  const fetchProfile = async () => {
-    try {
-      const { data } = await api.get("/auth/profile");
+    const fetchProfile = async () => {
+      try {
+        const { data } = await api.get("/auth/profile");
 
-      if (isMounted) {
-        setUserInfo(data.user);
+        if (isMounted) {
+          setUserInfo(data.user);
+        }
+      } catch (error) {
+        console.error(
+          "Error fetching profile:",
+          error.response?.data?.message || error.message
+        );
+
+        if (isMounted) {
+          setUserInfo(null);
+        }
       }
-    } catch (error) {
-      console.error(
-        "Error fetching profile:",
-        error.response?.data?.message || error.message
-      );
+    };
 
-      if (isMounted) {
-        setUserInfo(null);
-      }
-    }
-  };
+    fetchProfile();
 
-  fetchProfile();
-
-  return () => {
-    isMounted = false;
-  };
-}, []);
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   if (!userInfo) {
     return (
@@ -117,6 +117,21 @@ export default function Profile() {
 
               <p className="text-lg text-foreground font-medium break-all">
                 {userInfo?.email}
+              </p>
+            </div>
+
+            {/* Phone Number */}
+            <div className="bg-accent/40 rounded-2xl p-5 border border-border">
+              <div className="flex items-center gap-3 mb-3">
+                <Phone className="w-5 h-5 text-primary" />
+
+                <span className="text-sm text-muted-foreground">
+                  Phone Number
+                </span>
+              </div>
+
+              <p className="text-lg text-foreground font-medium">
+                {userInfo?.phone || "Not provided"}
               </p>
             </div>
 

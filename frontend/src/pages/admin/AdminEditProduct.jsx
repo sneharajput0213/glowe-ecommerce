@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../utils/api";
@@ -60,30 +60,30 @@ export default function AdminEditProduct() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
+  e.preventDefault();
+  setSaving(true);
+  setError("");
 
-    try {
-      // Your shared admin routes currently support changing isActive,
-      // but do not expose an admin product-edit endpoint.
-      // The general product update route is retained here for now.
-      await api.put(`/products/${id}`, {
-        ...formData,
-        price: Number(formData.price),
-        countInStock: Number(formData.countInStock),
-      });
+  try {
+    await api.put(`/products/${id}`, {
+      ...formData,
+      price: Number(formData.price),
+      countInStock: Number(formData.countInStock),
+    });
 
-      alert("Product Updated Successfully");
-      navigate("/admin/products");
-    } catch (error) {
-      setError(
-        error.response?.data?.message || "Product update failed."
-      );
-    } finally {
-      setSaving(false);
-    }
-  };
+    toast.success("Product updated successfully!");
+
+    navigate("/admin/products");
+  } catch (error) {
+    const message =
+      error.response?.data?.message || "Product update failed.";
+
+    setError(message);
+    toast.error(message);
+  } finally {
+    setSaving(false);
+  }
+};
 
   if (loading) {
     return <p className="p-6">Loading product...</p>;

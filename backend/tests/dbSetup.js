@@ -1,5 +1,4 @@
-
-import User from "../models/userModel.js";
+import mongoose from "mongoose";
 import {
   connectTestDatabase,
   disconnectTestDatabase
@@ -10,7 +9,15 @@ export async function setupTestDatabase() {
 }
 
 export async function cleanupTestDatabase() {
-  await User.deleteMany({});
+  if (mongoose.connection.name !== "glowe_test") {
+    throw new Error("Refusing to clean a non-test database");
+  }
+
+  const collections = mongoose.connection.collections;
+
+  for (const collection of Object.values(collections)) {
+    await collection.deleteMany({});
+  }
 }
 
 export async function closeTestDatabase() {

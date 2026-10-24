@@ -16,7 +16,6 @@ const router = express.Router();
 router.post(
     "/",
     authMiddleware,
-    authorize("customer"),
     validate(createReviewSchema),
     createReview
 );

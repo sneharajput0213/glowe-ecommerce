@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 import Order from "../models/orderModel.js";
 import { restoreOrderStock } from "./inventoryService.js";
@@ -128,7 +127,10 @@ export const applyVerifiedPayment = async ({
                         };
                     }
 
-                    await order.save({ session });
+                    await order.save({
+                        session,
+                        validateModifiedOnly: true
+                    });
                     return;
                 }
 
@@ -144,6 +146,7 @@ export const applyVerifiedPayment = async ({
 
                 if (canConfirmPayment) {
                     order.paymentStatus = "paid";
+                    order.orderStatus = "confirmed";
                     order.paymentPayuId = payuId;
                     order.paymentTxnId = null;
                     order.paymentInitiatedAt = null;
@@ -220,7 +223,10 @@ export const applyVerifiedPayment = async ({
                 };
             }
 
-            await order.save({ session });
+            await order.save({
+                session,
+                validateModifiedOnly: true
+            });
         });
 
         return result;

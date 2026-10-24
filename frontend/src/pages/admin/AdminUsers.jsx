@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -41,39 +41,57 @@ export default function AdminUsers() {
     fetchUsers();
   }, []);
 
-  const toggleStatus = async (user) => {
-    const nextStatus = !user.isActive;
+  const toggleStatus = (user) => {
+  const nextStatus = !user.isActive;
+  const action = nextStatus ? "Activate" : "Deactivate";
 
-    const confirmed = window.confirm(
-      `${nextStatus ? "Activate" : "Deactivate"} ${user.name}'s account?`
-    );
+  toast(`${action} ${user.name}'s account?`, {
+    description: `Are you sure you want to ${action.toLowerCase()} this account?`,
+    duration: 15000,
 
-    if (!confirmed) return;
+    action: {
+      label: action,
+      onClick: async () => {
+        try {
+          setUpdatingId(user._id);
+          setError("");
 
-    try {
-      setUpdatingId(user._id);
-      setError("");
+          await api.put(`/admin/users/${user._id}/status`, {
+            isActive: nextStatus,
+          });
 
-      await api.put(`/admin/users/${user._id}/status`, {
-        isActive: nextStatus,
-      });
+          setUsers((prev) =>
+            prev.map((account) =>
+              account._id === user._id
+                ? { ...account, isActive: nextStatus }
+                : account
+            )
+          );
 
-      setUsers((prev) =>
-        prev.map((account) =>
-          account._id === user._id
-            ? { ...account, isActive: nextStatus }
-            : account
-        )
-      );
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to update customer status."
-      );
-    } finally {
-      setUpdatingId(null);
-    }
-  };
+          toast.success(
+            nextStatus
+              ? `${user.name}'s account activated successfully!`
+              : `${user.name}'s account deactivated successfully!`
+          );
+        } catch (err) {
+          const message =
+            err.response?.data?.message ||
+            "Failed to update customer status.";
+
+          setError(message);
+          toast.error(message);
+        } finally {
+          setUpdatingId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
+};
 
   const activeUsers = users.filter(
     (user) => user.isActive

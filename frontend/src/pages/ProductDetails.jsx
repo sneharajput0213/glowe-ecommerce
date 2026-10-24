@@ -8,7 +8,7 @@ import {
   Check,
   Star,
 } from "lucide-react";
-
+import { toast } from "sonner";
 import api from "../utils/api";
 
 export default function ProductDetails() {
@@ -206,7 +206,7 @@ const handleAddToCart = async () => {
       setAddedToCart(false);
     }, 2000);
   } catch (error) {
-    alert(
+    toast.error(
       error.response?.data?.message ||
       "Could not add product to cart. Please try again."
     );
@@ -229,7 +229,7 @@ const handleToggleWishlist = async () => {
 
     window.dispatchEvent(new Event("wishlistUpdated"));
   } catch (error) {
-    alert(
+    toast.error(
       error.response?.data?.message ||
       "Could not update wishlist. Please try again."
     );
@@ -394,20 +394,19 @@ const handleToggleWishlist = async () => {
 
             <div>
               <h3 className="font-medium mb-2">
-                Stock Available
+                Availability
               </h3>
 
-              <p>
-                {product.countInStock}
-              </p>
+              {product.countInStock > 0 ? (
+                <p className="text-green-600 font-medium flex items-center gap-2">
+                  In Stock
+                </p>
+              ) : (
+                <p className="text-red-500 font-medium">
+                  Out of Stock
+                </p>
+              )}
             </div>
-
-            
-            {product.countInStock <= 0 && (
-              <p className="text-red-500 font-medium">
-                Out of Stock
-              </p>
-            )}
 
 
             {/* Quantity */}

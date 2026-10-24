@@ -5,39 +5,7 @@ import User from "../models/userModel.js";
 import mongoose from "mongoose";
 import { restoreOrderStock, reserveOrderStock } from "../services/inventoryService.js";
 import { applyVerifiedPayment } from "../services/paymentReconciliationService.js";
-
-const verifyPayUTransaction = async (txnid) => {
-
-    const key = process.env.PAYU_KEY;
-    const salt = process.env.PAYU_SALT;
-
-    const hashString = `${key}|verify_payment|${txnid}|${salt}`;
-
-    const hash = crypto
-        .createHash("sha512")
-        .update(hashString)
-        .digest("hex");
-
-    const data = new URLSearchParams({
-        key,
-        command: "verify_payment",
-        var1: txnid,
-        hash
-    });
-
-    const response = await axios.post(
-        "https://test.payu.in/merchant/postservice?form=2",
-        data.toString(),
-        {
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            timeout: 10000
-        }
-    );
-
-    return response.data;
-};
+import { verifyPayUTransaction } from "../services/payuVerificationService.js";
 
 export const createPayment = async (req, res) => {
     const { orderId } = req.validatedBody;
@@ -109,10 +77,15 @@ export const createPayment = async (req, res) => {
                 return;
             }
 
-            if (order.orderStatus === "cancelled") {
+            if (
+                order.paymentStatus === "pending" &&
+                !order.paymentTxnId &&
+                order.paymentAttempts.length === 0 &&
+                order.createdAt <= new Date(Date.now() - 30 * 60 * 1000)
+            ) {
                 rejection = {
                     status: 400,
-                    message: "Cannot pay for a cancelled order"
+                    message: "Order payment window has expired. Please place a new order."
                 };
                 return;
             }
@@ -420,7 +393,6 @@ export const handlePayUResponse = async (req, res) => {
     }
 };
 
-
 export const reconcilePayment = async (req, res) => {
     try {
         const { orderId } = req.params;
@@ -520,6 +492,29 @@ export const reconcilePayment = async (req, res) => {
 
         return res.status(503).json({
             message: "Payment verification is temporarily unavailable. Please try again later."
+        });
+    }
+};
+
+export const getFailedPayments = async (req, res) => {
+    try {
+        const orders = await Order.find({
+            user: req.user.id,
+            paymentStatus: "failed",
+            orderStatus: { $ne: "cancelled" }
+        })
+            .select("_id items totalPrice createdAt paymentStatus")
+            .sort({ createdAt: -1 });
+
+        return res.status(200).json({ orders });
+    } catch (error) {
+        console.error(
+            "Error fetching failed payments:",
+            error.message
+        );
+
+        return res.status(500).json({
+            message: "Unable to fetch failed payments"
         });
     }
 };

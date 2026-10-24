@@ -1,4 +1,4 @@
-
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
   Search,
@@ -86,39 +86,54 @@ export default function AdminOrders() {
     fetchOrders();
   }, []);
 
-  const updateStatus = async (orderId, orderStatus) => {
-    const previousOrder = orders.find(
-      (order) => order._id === orderId
-    );
+  const updateStatus = (orderId, orderStatus) => {
+  const previousOrder = orders.find(
+    (order) => order._id === orderId
+  );
 
-    if (!previousOrder || previousOrder.orderStatus === orderStatus) {
-      return;
-    }
+  if (!previousOrder || previousOrder.orderStatus === orderStatus) {
+    return;
+  }
 
-    const confirmed = window.confirm(
-      `Change order status to "${orderStatus}"?`
-    );
+  toast(`Change order status to "${orderStatus}"?`, {
+    description: "Are you sure you want to update this order's status?",
+    duration: 15000,
 
-    if (!confirmed) return;
+    action: {
+      label: "Confirm",
+      onClick: async () => {
+        try {
+          setError("");
+          setUpdatingOrderId(orderId);
 
-    try {
-      setError("");
-      setUpdatingOrderId(orderId);
+          await api.put(`/admin/orders/${orderId}/status`, {
+            orderStatus,
+          });
 
-      await api.put(`/admin/orders/${orderId}/status`, {
-        orderStatus,
-      });
+          await fetchOrders();
 
-      await fetchOrders();
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          "Failed to update order status."
-      );
-    } finally {
-      setUpdatingOrderId(null);
-    }
-  };
+          toast.success("Order status updated successfully!", {
+            description: `Order status changed to ${orderStatus}.`,
+          });
+        } catch (err) {
+          const message =
+            err.response?.data?.message ||
+            "Failed to update order status.";
+
+          setError(message);
+          toast.error(message);
+        } finally {
+          setUpdatingOrderId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
+};
 
   const filteredOrders = orders.filter((order) => {
     const query = search.trim().toLowerCase();

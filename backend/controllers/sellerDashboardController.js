@@ -10,7 +10,8 @@ export const getSellerDashboardOverview = async (req, res) => {
         }).select("countInStock");
 
         const orders = await Order.find({
-            "items.seller": sellerId
+            "items.seller": sellerId,
+            paymentStatus: "paid"
         });
 
         let totalOrders = 0;

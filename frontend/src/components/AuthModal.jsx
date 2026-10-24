@@ -12,6 +12,7 @@ import {
   setWishlistLoading,
   setWishlistError,
 } from "../redux/wishlistSlice";
+import { toast } from "sonner";
 
 function AuthModal({ isOpen, onClose }) {
   const [isLogin, setIsLogin] = useState(true);
@@ -89,11 +90,24 @@ function AuthModal({ isOpen, onClose }) {
 
   // SIGNUP INPUTS
   const handleSignupChange = (e) => {
+  const { name, value } = e.target;
+
+  if (name === "phone") {
+    const digitsOnly = value.replace(/\D/g, "").slice(0, 10);
+
     setSignupData((prev) => ({
       ...prev,
-      [e.target.name]: e.target.value,
+      phone: digitsOnly,
     }));
-  };
+
+    return;
+  }
+
+  setSignupData((prev) => ({
+    ...prev,
+    [name]: value,
+  }));
+};
 
   // LOGIN
   
@@ -117,7 +131,7 @@ const handleLoginSubmit = async (e) => {
       await loadUserData();
     }
 
-    alert("Login successful!");
+    sessionStorage.setItem("authSuccess", "Login successful!");
 
     setLoginData({
       email: "",
@@ -136,14 +150,14 @@ const handleLoginSubmit = async (e) => {
     }
 
   } catch (error) {
-    alert(
-      error.response?.data?.message ||
+  toast.error(
+    error.response?.data?.message ||
       error.message ||
       "Login failed"
-    );
-  } finally {
-    setLoading(false);
-  }
+  );
+} finally {
+  setLoading(false);
+}
 };
 
   // SIGNUP
@@ -154,7 +168,7 @@ const handleLoginSubmit = async (e) => {
       signupData.password !==
       signupData.confirmPassword
     ) {
-      alert("Passwords do not match");
+      toast.error("Passwords do not match");
       return;
     }
 
@@ -173,7 +187,7 @@ const handleLoginSubmit = async (e) => {
 
       await loadUserData();
 
-alert("Account created successfully!");
+sessionStorage.setItem("authSuccess", "Account created successfully!");
 
 setSignupData({
   fullName: "",
@@ -186,14 +200,14 @@ setSignupData({
 onClose();
 window.location.reload();
     } catch (error) {
-      alert(
-        error.response?.data?.message ||
-        error.message ||
-        "Signup failed"
-      );
-    } finally {
-      setLoading(false);
-    }
+  toast.error(
+    error.response?.data?.message ||
+      error.message ||
+      "Signup failed"
+  );
+} finally {
+  setLoading(false);
+}
   };
 
   return (
@@ -348,12 +362,17 @@ window.location.reload();
                 <input
                   type="tel"
                   name="phone"
-                  placeholder="Phone Number"
+                  placeholder="10-digit Mobile Number"
                   value={signupData.phone}
                   onChange={handleSignupChange}
+                  inputMode="numeric"
+                  pattern="[6-9][0-9]{9}"
+                  maxLength={10}
+                  minLength={10}
+                  title="Enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9"
                   required
                   className="w-full px-4 py-3 bg-input-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/30"
-                />
+/>
 
                 <input
                   type={

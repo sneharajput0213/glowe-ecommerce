@@ -23,8 +23,10 @@ export const registerSchema = z.object({
 
     phone: z.string()
         .trim()
-        .min(7, "Phone number must be at least 7 characters")
-        .max(20, "Phone number cannot exceed 20 characters")
+        .regex(
+          /^[6-9]\d{9}$/,
+          "Enter a valid 10-digit Indian mobile number"
+        )
 }).strict();
 
 export const sellerRegisterSchema = z.object({
@@ -53,7 +55,6 @@ export const sellerRegisterSchema = z.object({
     .min(2, "Store name must be at least 2 characters")
     .max(100, "Store name cannot exceed 100 characters")
 }).strict();
-
 
 export const loginSchema = z.object({
   email: z.string()

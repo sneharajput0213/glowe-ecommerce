@@ -14,7 +14,9 @@ export const getAdminDashboardOverview = async (req, res) => {
             User.countDocuments({ role: "customer" }),
             User.countDocuments({ role: "seller" }),
             Product.countDocuments(),
-            Order.countDocuments()
+            Order.countDocuments({
+                paymentStatus: "paid"
+            })
         ]);
 
         const revenueResult = await Order.aggregate([
@@ -130,7 +132,9 @@ export const getAdminProducts = async (req, res) => {
 
 export const getAdminOrders = async (req, res) => {
     try {
-        const orders = await Order.find()
+        const orders = await Order.find({
+            paymentStatus: "paid"
+        })
             .populate("user", "name email")
             .populate("items.seller", "name email")
             .sort({ createdAt: -1 });

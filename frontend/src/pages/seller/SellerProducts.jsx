@@ -1,4 +1,4 @@
-
+import {toast} from "sonner";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
@@ -33,30 +33,43 @@ function SellerProducts() {
     product.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleDelete = async (productId, productName) => {
-  const confirmed = window.confirm(
-    `Are you sure you want to delete "${productName}"?`
-  );
+  const handleDelete = (productId, productName) => {
+  toast(`Delete "${productName}"?`, {
+    description: "Are you sure? This action cannot be undone.",
+    duration: 15000,
 
-  if (!confirmed) return;
+    action: {
+      label: "Delete",
+      onClick: async () => {
+        try {
+          setDeletingId(productId);
+          setError("");
 
-  try {
-    setDeletingId(productId);
-    setError("");
+          await api.delete(`/products/${productId}`);
 
-    await api.delete(`/products/${productId}`);
+          setProducts((prev) =>
+            prev.filter((product) => product._id !== productId)
+          );
 
-    setProducts((prev) =>
-      prev.filter((product) => product._id !== productId)
-    );
-  } catch (error) {
-    setError(
-      error.response?.data?.message ||
-        "Failed to delete product."
-    );
-  } finally {
-    setDeletingId(null);
-  }
+          toast.success("Product deleted successfully!");
+        } catch (error) {
+          const message =
+            error.response?.data?.message ||
+            "Failed to delete product.";
+
+          setError(message);
+          toast.error(message);
+        } finally {
+          setDeletingId(null);
+        }
+      },
+    },
+
+    cancel: {
+      label: "Cancel",
+      onClick: () => {},
+    },
+  });
 };
 
   return (
