@@ -597,7 +597,8 @@ export const updateSellerOrderItemStatus = async (req, res) => {
                 }
             ],
             {
-                new: true
+                new: true,
+                updatePipeline: true
             }
         );
 
